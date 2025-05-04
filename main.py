@@ -1,28 +1,46 @@
 import asyncio
 import logging
 import sys
+import os
 
-# Импортируем функцию запуска сервера из нашего пакета
-# Poetry поймет, где искать src/http_tarpit
-from http_tarpit.tarpit import start_server
-
-def setup_logging():
-    """Настраивает базовое логирование в консоль."""
-    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    # Используем StreamHandler для вывода в stderr/stdout
-    logging.basicConfig(level=logging.INFO, format=log_format, stream=sys.stdout)
-    # Можно сделать логгирование более подробным для нашего модуля
-    logging.getLogger("http_tarpit.tarpit").setLevel(logging.DEBUG) # Показываем debug-сообщения от нашего тарпита
-
-if __name__ == "__main__":
+# 1. Настройка логирования - ДО всего остального импорта из нашего пакета
+try:
+    from src.http_tarpit.logger_setup import setup_logging
     setup_logging()
-    log = logging.getLogger(__name__) # Логгер для main.py
+except ImportError as e:
+    print(f"Critical Error: Failed to import or run logger setup: {e}", file=sys.stderr)
+    print("Please ensure 'src/http_tarpit/logger_setup.py' exists and is correct.", file=sys.stderr)
+    sys.exit(1)
+except Exception as e_log:
+    print(f"Critical Error during logging setup: {e_log}", file=sys.stderr)
+    sys.exit(1)
+
+
+# Получаем логгер для этого файла уже ПОСЛЕ настройки
+log = logging.getLogger(__name__)
+
+# 2. Теперь импортируем остальные части приложения
+try:
+    from src.http_tarpit import config # Импортируем для доступа к конфигу, если нужно
+    from src.http_tarpit.tarpit_server import run_server
+except ImportError as e:
+    log.exception(f"Failed to import application modules: {e}")
+    sys.exit(1)
+
+
+# 3. Основной блок запуска
+if __name__ == "__main__":
+    log.info("Application starting...")
+    log.info(f"Configuration: HOST={config.HOST}, PORT={config.PORT}, LOG_FILE={config.LOG_FILE}")
 
     try:
         # Запускаем асинхронный сервер
-        asyncio.run(start_server())
+        asyncio.run(run_server())
     except KeyboardInterrupt:
         log.info("Server stopped by user (KeyboardInterrupt).")
     except Exception as e:
-        log.exception(f"An unexpected critical error occurred in main: {e}")
-        sys.exit(1)
+        # Логируем любые другие критические ошибки во время работы run_server
+        log.exception(f"A critical error occurred: {e}")
+        sys.exit(1) # Выходим с кодом ошибки
+    finally:
+        log.info("Application shutting down.")
