@@ -3,7 +3,6 @@ import logging
 import sys
 import os
 
-# 1. Настройка логирования - ДО всего остального импорта из нашего пакета
 try:
     from src.http_tarpit.logger_setup import setup_logging
     setup_logging()
@@ -16,31 +15,29 @@ except Exception as e_log:
     sys.exit(1)
 
 
-# Получаем логгер для этого файла уже ПОСЛЕ настройки
+
 log = logging.getLogger(__name__)
 
-# 2. Теперь импортируем остальные части приложения
+
 try:
-    from src.http_tarpit import config # Импортируем для доступа к конфигу, если нужно
+    from src.http_tarpit import config 
     from src.http_tarpit.tarpit_server import run_server
 except ImportError as e:
     log.exception(f"Failed to import application modules: {e}")
     sys.exit(1)
 
 
-# 3. Основной блок запуска
+
 if __name__ == "__main__":
     log.info("Application starting...")
     log.info(f"Configuration: HOST={config.HOST}, PORT={config.PORT}, LOG_FILE={config.LOG_FILE}")
 
     try:
-        # Запускаем асинхронный сервер
         asyncio.run(run_server())
     except KeyboardInterrupt:
         log.info("Server stopped by user (KeyboardInterrupt).")
     except Exception as e:
-        # Логируем любые другие критические ошибки во время работы run_server
         log.exception(f"A critical error occurred: {e}")
-        sys.exit(1) # Выходим с кодом ошибки
+        sys.exit(1) 
     finally:
         log.info("Application shutting down.")

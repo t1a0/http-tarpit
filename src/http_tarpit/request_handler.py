@@ -3,13 +3,14 @@ import logging
 import time
 from aiohttp import web
 
-# Импортируем конфигурацию
 from . import config
 
-log = logging.getLogger(__name__) # Логгер для этого модуля
+from .reporting.abuseipdb_reporter import report_ip_to_abuseipdb
+
+log = logging.getLogger(__name__) 
 
 def _clean_headers(headers):
-    """Преобразует MultiDict в обычный dict для JSON лога."""
+    """Преобразует MultiDict в обычный dict для JSON лога"""
     return {k: v for k, v in headers.items()}
 
 async def handle_request(request):
@@ -24,7 +25,6 @@ async def handle_request(request):
         ip_addr = peername[0]
         port = peername[1]
 
-    # Собираем все детали запроса/ответа в один словарь для лога
     log_extra = {
         'client_ip': ip_addr,
         'client_port': port,
@@ -34,19 +34,19 @@ async def handle_request(request):
         'http_version': f"{request.version.major}.{request.version.minor}",
         'user_agent': request.headers.get('User-Agent', 'N/A'),
         'headers': _clean_headers(request.headers),
-        'request_body_preview': None, # Пока не логируем тело запроса
+        'request_body_preview': None,
         'response_status': None,
         'bytes_sent': 0,
         'duration_s': None,
         'error_message': None,
     }
 
-    # Первое сообщение в лог о получении запроса
     log.info(f"Connection received", extra={'extra_data': log_extra})
 
-    # --- Сюда позже вставим вызов AbuseIPDB репортера ---
-    # from .reporting.abuseipdb_reporter import report_ip # Пример
-    # asyncio.create_task(report_ip(ip_addr, log_extra)) # Неблокирующий вызов
+    if config.ABUSEIPDB_ENABLED: 
+        report_comment = f"Path: {request.path}, Method: {request.method}, UA: {log_extra['user_agent'][:100]}" 
+        asyncio.create_task(report_ip_to_abuseipdb(ip_addr, report_comment))
+        log.debug(f"Scheduled AbuseIPDB report task for {ip_addr}")
 
     response_status = 200
     bytes_sent_total = 0
@@ -62,7 +62,6 @@ async def handle_request(request):
         await response.prepare(request)
         log.debug(f"Sent headers to {ip_addr}", extra={'extra_data': {'client_ip': ip_addr}}) # Краткий DEBUG лог
 
-        # Медленная отправка
         while bytes_sent_total < config.MAX_RESPONSE_BYTES:
             try:
                 await response.write(config.RESPONSE_CHUNK)
@@ -78,7 +77,6 @@ async def handle_request(request):
             except Exception as e_write:
                 error_msg = f"Error writing to {ip_addr}:{port}: {e_write}"
                 log_extra['error_message'] = error_msg
-                # Используем exc_info=True для полного стека в JSON
                 log.error(error_msg, exc_info=True, extra={'extra_data': {'client_ip': ip_addr}})
                 break
 
@@ -93,11 +91,9 @@ async def handle_request(request):
          return web.Response(status=500, text="Internal Server Error")
 
     finally:
-        # Этот блок выполнится всегда, обновляем финальные данные для лога
         end_time = time.monotonic()
         duration = end_time - start_time
         log_extra['duration_s'] = round(duration, 3)
         log_extra['bytes_sent'] = bytes_sent_total
-        # Записываем финальное сообщение INFO или WARNING с полными данными
         log_level = logging.WARNING if error_msg else logging.INFO
         log.log(log_level, f"Connection finished for {ip_addr}:{port}", extra={'extra_data': log_extra})
