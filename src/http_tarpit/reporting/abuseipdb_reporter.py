@@ -57,7 +57,17 @@ async def report_ip_to_abuseipdb(ip_address: str, comment_details: str):
                 else: 
                     log.warning(f"Reported IP {ip_address}, but response format was unexpected or score missing: {response_json}")
     except ClientResponseError as e:
-        log.error(f"Failed to report IP {ip_address}: HTTP Error {e.status} - {e.message}. Response: {await e.text()}")
+        response_body = getattr(e, 'response_body', None) 
+        if not response_body and hasattr(e, 'history') and e.history:
+            try:
+                response_body = await e.history[-1].text()
+            except Exception:
+                response_body = "(Failed to retrieve error response body)"
+        log.error(
+            f"Failed to report IP {ip_address}: HTTP Error {e.status} - {e.message}. "
+            f"URL: {e.request_info.real_url}. " 
+            f"Response hint: {response_body or '(No body details)'}" 
+        )
     except ClientError as e:
         log.error(f"Failed to report IP {ip_address}: Client/Network Error - {e}")
     except Exception as e:
