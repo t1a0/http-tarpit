@@ -31,5 +31,13 @@ async def run_server():
         await runner.cleanup()
         raise 
     finally:
-        log.info("Server run loop finished or encountered an error.")
-        await runner.cleanup()
+        log.info("Shutting down server resources...")
+        if 'site' in locals() and site._server is not None: 
+            log.info("Stopping TCPSite...")
+            await site.stop()
+            log.info("TCPSite stopped.")
+        if 'runner' in locals():
+            log.info("Cleaning up AppRunner...")
+            await runner.cleanup()
+            log.info("AppRunner cleaned up.")
+        log.info("Server resources shut down.")

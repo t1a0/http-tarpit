@@ -19,11 +19,10 @@ def _clean_headers(headers):
     return {k: v for k, v in headers.items()}
 
 async def _handle_abuseipdb_report(ip_addr: str, event_log_data: dict):
-    # if config.ABUSEIPDB_ENABLED and \
-    #    ip_addr != "127.0.0.1" and \
-    #    not ip_addr.startswith("192.168.") and \
-    #    not ip_addr.startswith("10."):
-    if config.ABUSEIPDB_ENABLED:
+    if config.ABUSEIPDB_ENABLED and \
+       ip_addr != "127.0.0.1" and \
+       not ip_addr.startswith("192.168.") and \
+       not ip_addr.startswith("10."):
         if not await asyncio.to_thread(check_ip_reported_recently, ip_addr): 
             report_comment = f"Path: {event_log_data['http_path']}, Method: {event_log_data['http_method']}, UA: {event_log_data['user_agent'][:100]}"
             log.debug(f"Scheduling AbuseIPDB report task for {ip_addr}")
