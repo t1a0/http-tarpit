@@ -41,16 +41,22 @@ async def handle_request(request):
     start_time = time.monotonic()
     request_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat() 
     peername = request.transport.get_extra_info('peername')
-    ip_addr = "Unknown"
-    port = 0
+    proxy_ip = "Unknown_Proxy"
     if peername:
-        ip_addr = peername[0]
-        port = peername[1]
-        
+        proxy_ip = peername[0]
+    
+    real_ip_from_xfwd = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+    real_ip_from_xreal = request.headers.get('X-Real-IP', '').strip()
+    
+    actual_client_ip = real_ip_from_xfwd or real_ip_from_xreal or proxy_ip
+    
+    log.debug(f"Proxy IP: {proxy_ip}, X-Forwarded-For: {request.headers.get('X-Forwarded-For')}, X-Real-IP: {request.headers.get('X-Real-IP')}, Using IP: {actual_client_ip}")    
+    ip_addr = actual_client_ip
+    
     event_log_data = {
         'timestamp': request_timestamp,
         'client_ip': ip_addr,
-        'client_port': port,
+        'client_port': peername[1] if peername else 0,
         'http_method': request.method,
         'http_path': request.path,
         'http_query': str(request.query_string),
@@ -67,7 +73,7 @@ async def handle_request(request):
         'abuseipdb_report_timestamp': None
     }
 
-    if ip_addr != "Unknown":
+    if ip_addr != "Unknown Proxy":
         geoip_info = await asyncio.to_thread(get_geoip_data, ip_addr) 
         if geoip_info:
             event_log_data['geoip_data'] = geoip_info
