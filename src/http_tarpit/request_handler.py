@@ -42,8 +42,10 @@ async def handle_request(request):
     request_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat() 
     peername = request.transport.get_extra_info('peername')
     proxy_ip = "Unknown_Proxy"
+    proxy_port = 0
     if peername:
         proxy_ip = peername[0]
+        proxy_port = peername[1]
     
     real_ip_from_xfwd = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
     real_ip_from_xreal = request.headers.get('X-Real-IP', '').strip()
@@ -56,7 +58,7 @@ async def handle_request(request):
     event_log_data = {
         'timestamp': request_timestamp,
         'client_ip': ip_addr,
-        'client_port': peername[1] if peername else 0,
+        'client_port': proxy_port,
         'http_method': request.method,
         'http_path': request.path,
         'http_query': str(request.query_string),
@@ -134,7 +136,7 @@ async def handle_request(request):
         event_log_data['bytes_sent'] = bytes_sent_total
 
         final_log_level = logging.WARNING if error_msg else logging.INFO
-        log.log(final_log_level, f"Connection finished for {ip_addr}:{port} (JSON log)", extra={'extra_data': event_log_data})
+        log.log(final_log_level, f"Connection finished for {ip_addr}:{proxy_port} (JSON log)", extra={'extra_data': event_log_data})
 
         try:
             await asyncio.to_thread(log_event_to_db, event_log_data.copy()) 
