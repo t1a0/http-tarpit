@@ -16,7 +16,7 @@ CONSOLE_LOG_LEVEL = logging.INFO
 
 # bd config
 DATABASE_DIR = BASE_DIR / "data"
-SQKITE_DB_FILE = DATABASE_DIR / "tarpit_events.db"
+SQLITE_DB_FILE = DATABASE_DIR / "tarpit_events.db"
 
 # tarpit config
 RESPONSE_DELAY_SECONDS = 1.5
@@ -36,3 +36,4 @@ GEOIP_CITY_ENABLED = GEOLITE2_CITY_DB_PATH.exists()
 GEOIP_ASN_ENABLED = GEOLITE2_ASN_DB_PATH.exists()
 
 LOG_DIR.mkdir(parents=True, exist_ok=True)
+DATABASE_DIR.mkdir(parents=True, exist_ok=True)

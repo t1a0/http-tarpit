@@ -16,5 +16,7 @@ dist/
 logs/
 *.log.*
 *.mmdb
+*.db
+data/*.db
 data/*.mmdb
 config.ini

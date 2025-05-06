@@ -18,7 +18,20 @@ except Exception as e_log:
 
 log = logging.getLogger(__name__)
 
+try:
+    from src.http_tarpit import config
+    from src.http_tarpit.database import init_db 
+    from src.http_tarpit.tarpit_server import run_server
 
+    init_db()
+
+except ImportError as e:
+    log.exception(f"Failed to import application modules or init DB: {e}")
+    sys.exit(1)
+except Exception as e_init: 
+    log.exception(f"Failed during application initialization: {e_init}")
+    sys.exit(1)
+    
 try:
     from src.http_tarpit import config 
     from src.http_tarpit.tarpit_server import run_server
