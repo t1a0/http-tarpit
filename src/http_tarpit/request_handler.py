@@ -7,6 +7,8 @@ from . import config
 
 from .reporting.abuseipdb_reporter import report_ip_to_abuseipdb
 
+from .utils.geoip_lookup import get_geoip_data
+
 log = logging.getLogger(__name__) 
 
 def _clean_headers(headers):
@@ -14,9 +16,7 @@ def _clean_headers(headers):
     return {k: v for k, v in headers.items()}
 
 async def handle_request(request):
-    """
-    Обработчик входящих HTTP запросов. Отвечает медленно и логирует детали.
-    """
+    """Обработчик входящих HTTP запросов. Отвечает медленно и логирует детали."""
     start_time = time.monotonic()
     peername = request.transport.get_extra_info('peername')
     ip_addr = "Unknown"
@@ -39,8 +39,17 @@ async def handle_request(request):
         'bytes_sent': 0,
         'duration_s': None,
         'error_message': None,
+        'geoip_data': None,
     }
 
+    if ip_addr != "Unknown":
+        geoip_info = get_geoip_data(ip_addr)
+        if geoip_info:
+            log_extra['geoip_data'] = geoip_info
+            log.debug(f"GeoIP data for {ip_addr}: {geoip_info}")
+        else:
+            log.debug(f"No GeoIP data found for {ip_addr}")
+    
     log.info(f"Connection received", extra={'extra_data': log_extra})
 
     if config.ABUSEIPDB_ENABLED: 
@@ -58,9 +67,9 @@ async def handle_request(request):
             reason='OK',
             headers={'Content-Type': 'text/plain', 'Connection': 'keep-alive'}
         )
-        log_extra['response_status'] = response_status # Фиксируем успешный статус
+        log_extra['response_status'] = response_status
         await response.prepare(request)
-        log.debug(f"Sent headers to {ip_addr}", extra={'extra_data': {'client_ip': ip_addr}}) # Краткий DEBUG лог
+        log.debug(f"Sent headers to {ip_addr}", extra={'extra_data': {'client_ip': ip_addr}}) 
 
         while bytes_sent_total < config.MAX_RESPONSE_BYTES:
             try:
@@ -85,7 +94,7 @@ async def handle_request(request):
 
     except Exception as e_prepare:
          error_msg = f"Error during request preparation: {e_prepare}"
-         log_extra['response_status'] = 500 # Ошибка сервера
+         log_extra['response_status'] = 500 
          log_extra['error_message'] = error_msg
          log.error(error_msg, exc_info=True, extra={'extra_data': log_extra})
          return web.Response(status=500, text="Internal Server Error")

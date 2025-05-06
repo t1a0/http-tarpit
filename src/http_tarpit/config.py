@@ -7,12 +7,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 load_dotenv(dotenv_path=BASE_DIR/'.env')
 
-HOST = "127.0.0.1" # Слушаем только локально при разработке/проксировании
-PORT = 8080        # Непривилегированный порт
-LOG_DIR = BASE_DIR / "logs" # Папка для логов
-LOG_FILE = LOG_DIR / "tarpit.log" # Имя файла лога
-LOG_LEVEL = logging.DEBUG # Уровень логирования в файл 
-CONSOLE_LOG_LEVEL = logging.INFO # Уровень для вывода в консоль
+HOST = "127.0.0.1"
+PORT = 8080        
+LOG_DIR = BASE_DIR / "logs" 
+LOG_FILE = LOG_DIR / "tarpit.log" 
+LOG_LEVEL = logging.DEBUG 
+CONSOLE_LOG_LEVEL = logging.INFO 
+
+# bd config
+DATABASE_DIR = BASE_DIR / "data"
+SQKITE_DB_FILE = DATABASE_DIR / "tarpit_events.db"
 
 # tarpit config
 RESPONSE_DELAY_SECONDS = 1.5
@@ -25,5 +29,10 @@ ABUSEIPDB_CONFIDENCE_SCORE = 90
 ABUSEIPDB_COMMENT_PREFIX = "HTTP Tarpit detected bot activity:"
 ABUSEIPDB_CATEGORIES = "14,21" # 14 = Port Scan, 21 = Web App Atack (?18 = Brute?)
 
+GEOLITE2_CITY_DB_PATH = BASE_DIR / "data" / "GeoLite2-City.mmdb"
+GEOLITE2_ASN_DB_PATH = BASE_DIR / "data" / "GeoLite2-ASN.mmdb"
+
+GEOIP_CITY_ENABLED = GEOLITE2_CITY_DB_PATH.exists()
+GEOIP_ASN_ENABLED = GEOLITE2_ASN_DB_PATH.exists()
 
 LOG_DIR.mkdir(parents=True, exist_ok=True)
