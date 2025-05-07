@@ -22,8 +22,8 @@ async def _handle_abuseipdb_report(ip_addr: str, target_port: int, event_log_dat
     if config.ABUSEIPDB_ENABLED and \
        ip_addr != "127.0.0.1" and \
        not ip_addr.startswith("192.168.") and \
-       not ip_addr.startswith("10."):
-
+       not ip_addr.startswith("10.") and \
+       not (ip_addr.startswith("172.") and 16 <= int(ip_addr.split('.')[1]) <= 31):
         is_reported = await asyncio.to_thread(check_ip_reported_recently, ip_addr)
         if not is_reported:
             report_comment = (
@@ -37,7 +37,7 @@ async def _handle_abuseipdb_report(ip_addr: str, target_port: int, event_log_dat
         else:
             log.debug(f"IP {ip_addr} was reported recently (checked DB), skipping new report.")
     else:
-        log.debug(f"AbuseIPDB report for {ip_addr} skipped (IP or config).")
+        log.debug(f"AbuseIPDB report for {ip_addr} skipped (private/local IP or config).")
         event_log_data['reported_to_abuseipdb'] = 0
         event_log_data['abuseipdb_report_timestamp'] = None
         

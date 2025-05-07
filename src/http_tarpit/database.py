@@ -120,7 +120,7 @@ def log_event_to_db(event_data: dict):
             conn.close()
 
 
-def check_ip_reported_recently(ip_address: str, interval_hours: int = 24) -> bool:
+def check_ip_reported_recently(ip_address: str, interval_hours: int = 1) -> bool:
     conn = get_db_connection()
     if not conn:
         return False 
