@@ -41,7 +41,6 @@ def _initialize_geoip_readers():
 _initialize_geoip_readers() 
 
 def get_geoip_data(ip_address: str) -> dict:
-    # Пропускаем приватные/локальные IP, так как для них нет GeoIP данных
     if not ip_address or \
        ip_address == "127.0.0.1" or \
        ip_address.startswith("192.168.") or \

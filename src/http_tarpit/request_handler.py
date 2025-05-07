@@ -3,6 +3,7 @@ import logging
 import time
 import datetime
 from aiohttp import web
+from aiohttp.client_exceptions import ClientConnectionResetError 
 
 from . import config
 
@@ -112,33 +113,54 @@ async def handle_request(request):
             except ConnectionResetError:
                 error_msg = "Connection reset by peer during write"
                 event_log_data['error_message'] = error_msg
-                break
+                log.warning(error_msg, extra={'extra_data': {'client_ip': ip_addr}})
+                break 
             except Exception as e_write:
                 error_msg = f"Error writing to {ip_addr}:{port}: {e_write}"
                 event_log_data['error_message'] = error_msg
-                log.error(f"Error writing to {ip_addr}:{port}: {e_write}", exc_info=True) 
-                break
+                log.error(error_msg, exc_info=True, extra={'extra_data': {'client_ip': ip_addr}})
+                break 
+        if error_msg is None or error_msg == "Connection reset by peer during write":
+            try:
+                await response.write_eof()
+            except ClientConnectionResetError:
+                log.info(f"Client {ip_addr} closed connection before write_eof.")
+                if not error_msg: 
+                    error_msg = "Client closed connection prematurely before eof"
+                    event_log_data['error_message'] = error_msg
+            except Exception as e_eof:
+                log.error(f"Error during write_eof for {ip_addr}: {e_eof}", exc_info=True)
+                if not error_msg:
+                    error_msg = f"Error during write_eof: {e_eof}"
+                    event_log_data['error_message'] = error_msg
 
-        await response.write_eof()
         return response
 
     except Exception as e_prepare:
          error_msg = f"Error during request preparation: {e_prepare}"
          event_log_data['response_status'] = 500
          event_log_data['error_message'] = error_msg
-         log.error(f"Error during request preparation for {ip_addr}: {e_prepare}", exc_info=True)
+         log.error(f"Error during request preparation for {ip_addr}: {e_prepare}", exc_info=True, extra={'extra_data': event_log_data})
+         end_time = time.monotonic()
+         duration = end_time - start_time
+         event_log_data['duration_s'] = round(duration, 3)
+         try:
+             await asyncio.to_thread(log_event_to_db, event_log_data.copy())
+         except Exception as db_err:
+             log.exception(f"Failed to log event to database after prepare error for IP {ip_addr}: {db_err}")
          return web.Response(status=500, text="Internal Server Error")
 
     finally:
         end_time = time.monotonic()
         duration = end_time - start_time
         event_log_data['duration_s'] = round(duration, 3)
-        event_log_data['bytes_sent'] = bytes_sent_total
-
+        event_log_data['bytes_sent'] = bytes_sent_total 
+        if event_log_data['response_status'] is None:
+             event_log_data['response_status'] = 500 
         final_log_level = logging.WARNING if error_msg else logging.INFO
         log.log(final_log_level, f"Connection finished for {ip_addr}:{proxy_port} (JSON log)", extra={'extra_data': event_log_data})
 
         try:
-            await asyncio.to_thread(log_event_to_db, event_log_data.copy()) 
+            await asyncio.to_thread(log_event_to_db, event_log_data.copy())
         except Exception as db_err:
             log.exception(f"Failed to log event to database for IP {ip_addr}: {db_err}")
