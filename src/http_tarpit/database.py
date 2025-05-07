@@ -33,6 +33,7 @@ def init_db():
                 timestamp TEXT NOT NULL,
                 client_ip TEXT NOT NULL,
                 client_port INTEGER,
+                target_port INTEGER,
                 http_method TEXT,
                 http_path TEXT,
                 http_query TEXT,
@@ -53,6 +54,14 @@ def init_db():
                 abuseipdb_report_timestamp TEXT
             )
         ''')
+        try:
+            cursor.execute('ALTER TABLE events ADD COLUMN target_port INTEGER')
+            log.info("Added column 'target_port' to existing 'events' table.")
+        except sqlite3.OperationalError as e:
+            if 'duplicate column name' in str(e).lower():
+                pass
+            else:
+                raise 
         conn.commit()
         log.info(f"Database {DB_FILE} Initialized successfully. Table 'events' created or already exists.")
     except sqlite3.Error as e:
@@ -73,6 +82,7 @@ def log_event_to_db(event_data: dict):
         "timestamp": event_data.get('timestamp', datetime.datetime.now(datetime.timezone.utc).isoformat()),
         "client_ip": event_data.get('client_ip'),
         "client_port": event_data.get('client_port'),
+        "target_port": event_data.get('target_port'),
         "http_method": event_data.get('http_method'),
         "http_path": event_data.get('http_path'),
         "http_query": event_data.get('http_query'),

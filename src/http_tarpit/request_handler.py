@@ -11,30 +11,29 @@ from .reporting.abuseipdb_reporter import report_ip_to_abuseipdb
 
 from .utils.geoip_lookup import get_geoip_data
 
-from .database import log_event_to_db, check_ip_reported_recently, mark_ip_as_reported
+from .database import log_event_to_db, check_ip_reported_recently
 
 log = logging.getLogger(__name__) 
 
 def _clean_headers(headers):
-    """Преобразует MultiDict в обычный dict для JSON лога"""
     return {k: v for k, v in headers.items()}
 
-async def _handle_abuseipdb_report(ip_addr: str, event_log_data: dict):
+async def _handle_abuseipdb_report(ip_addr: str, target_port: int, event_log_data: dict):
     if config.ABUSEIPDB_ENABLED and \
        ip_addr != "127.0.0.1" and \
        not ip_addr.startswith("192.168.") and \
        not ip_addr.startswith("10."):
         if not await asyncio.to_thread(check_ip_reported_recently, ip_addr): 
-            report_comment = f"Path: {event_log_data['http_path']}, Method: {event_log_data['http_method']}, UA: {event_log_data['user_agent'][:100]}"
+            report_comment = f"TargetPort:{target_port},Path: {event_log_data['http_path']}, Method: {event_log_data['http_method']}, UA: {event_log_data['user_agent'][:100]}"
             log.debug(f"Scheduling AbuseIPDB report task for {ip_addr}")
             asyncio.create_task(report_ip_to_abuseipdb(ip_addr, report_comment))
-            event_log_data['reported_to_abuseipdb'] = 0 
-            event_log_data['abuseipdb_report_timestamp'] = None
+            event_log_data['reported_to_abuseipdb'] = 1
+            event_log_data['abuseipdb_report_timestamp'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
         else:
             log.debug(f"IP {ip_addr} was reported recently, skipping new report.")
     else:
-        
+        log.debug(f"AbuseIPDB report for {ip_addr} skipped.")
         event_log_data['reported_to_abuseipdb'] = 0
         event_log_data['abuseipdb_report_timestamp'] = None
         
@@ -53,13 +52,21 @@ async def handle_request(request):
     
     actual_client_ip = real_ip_from_xfwd or real_ip_from_xreal or proxy_ip
     
-    log.debug(f"Proxy IP: {proxy_ip}, X-Forwarded-For: {request.headers.get('X-Forwarded-For')}, X-Real-IP: {request.headers.get('X-Real-IP')}, Using IP: {actual_client_ip}")    
+    log.debug(f"Proxy IP: {proxy_ip}:{proxy_port}, Client IP: {actual_client_ip}")    
     ip_addr = actual_client_ip
+    target_port_str = request.headers.get('X-Tarpit-Target-Port', '0') 
+    target_port = 0
     
+    try:
+        target_port = int(target_port_str)
+    except ValueError:
+        log.warning(f"Could not parse X-Tarpit-Target-Port header: {target_port_str}")
+        
     event_log_data = {
         'timestamp': request_timestamp,
         'client_ip': ip_addr,
         'client_port': proxy_port,
+        'target_port': target_port,
         'http_method': request.method,
         'http_path': request.path,
         'http_query': str(request.query_string),
@@ -76,7 +83,7 @@ async def handle_request(request):
         'abuseipdb_report_timestamp': None
     }
 
-    if ip_addr != "Unknown Proxy":
+    if ip_addr != "Unknown Proxy" and not ip_addr.startswith("127."):
         geoip_info = await asyncio.to_thread(get_geoip_data, ip_addr) 
         if geoip_info:
             event_log_data['geoip_data'] = geoip_info
@@ -84,9 +91,9 @@ async def handle_request(request):
         else:
             log.debug(f"No GeoIP data found for {ip_addr}")
 
-    log.info(f"Connection received (logging to JSON)", extra={'extra_data': event_log_data})
+    log.info(f"Connection received on target port {target_port} (logging to JSON)", extra={'extra_data': event_log_data})
     
-    await _handle_abuseipdb_report(ip_addr, event_log_data)
+    await _handle_abuseipdb_report(ip_addr, target_port, event_log_data)
 
 
     response_status = 200
@@ -158,7 +165,7 @@ async def handle_request(request):
         if event_log_data['response_status'] is None:
              event_log_data['response_status'] = 500 
         final_log_level = logging.WARNING if error_msg else logging.INFO
-        log.log(final_log_level, f"Connection finished for {ip_addr}:{proxy_port} (JSON log)", extra={'extra_data': event_log_data})
+        log.log(final_log_level, f"Connection finished for {ip_addr}:{proxy_port} on target port {target_port} (JSON log)", extra={'extra_data': event_log_data})
 
         try:
             await asyncio.to_thread(log_event_to_db, event_log_data.copy())
