@@ -23,17 +23,21 @@ async def _handle_abuseipdb_report(ip_addr: str, target_port: int, event_log_dat
        ip_addr != "127.0.0.1" and \
        not ip_addr.startswith("192.168.") and \
        not ip_addr.startswith("10."):
-        if not await asyncio.to_thread(check_ip_reported_recently, ip_addr): 
-            report_comment = f"TargetPort:{target_port},Path: {event_log_data['http_path']}, Method: {event_log_data['http_method']}, UA: {event_log_data['user_agent'][:100]}"
-            log.debug(f"Scheduling AbuseIPDB report task for {ip_addr}")
-            asyncio.create_task(report_ip_to_abuseipdb(ip_addr, report_comment))
+
+        is_reported = await asyncio.to_thread(check_ip_reported_recently, ip_addr)
+        if not is_reported:
+            report_comment = (
+                f"TargetPort:{target_port}, Path:{event_log_data['http_path']}, "
+                f"Method:{event_log_data['http_method']}, UA:{event_log_data['user_agent'][:100]}"
+            )
+            log.debug(f"Scheduling AbuseIPDB report task for {ip_addr} on port {target_port}")
+            asyncio.create_task(report_ip_to_abuseipdb(ip_addr, target_port, report_comment)) 
             event_log_data['reported_to_abuseipdb'] = 1
             event_log_data['abuseipdb_report_timestamp'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-
         else:
-            log.debug(f"IP {ip_addr} was reported recently, skipping new report.")
+            log.debug(f"IP {ip_addr} was reported recently (checked DB), skipping new report.")
     else:
-        log.debug(f"AbuseIPDB report for {ip_addr} skipped.")
+        log.debug(f"AbuseIPDB report for {ip_addr} skipped (IP or config).")
         event_log_data['reported_to_abuseipdb'] = 0
         event_log_data['abuseipdb_report_timestamp'] = None
         
