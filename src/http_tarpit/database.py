@@ -119,34 +119,44 @@ def log_event_to_db(event_data: dict):
         if conn:
             conn.close()
 
-
-def check_ip_reported_recently(ip_address: str, interval_hours: int = 1) -> bool:
+def check_ip_reported_recently(ip_address: str) -> bool:
     conn = get_db_connection()
     if not conn:
-        return False 
+        return False
+
     interval_minutes = config.ABUSEIPDB_REPORT_INTERVAL_MINUTES
+
     try:
         cursor = conn.cursor()
         threshold_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=interval_minutes)
-        threshold_iso = threshold_time.isoformat()
-        
+        threshold_iso = threshold_time.isoformat(timespec='microseconds')
+
+        log.debug(f"Checking DB for reports for IP {ip_address} since {threshold_iso}")
+
         cursor.execute('''
-            SELECT 1 FROM events
+            SELECT abuseipdb_report_timestamp FROM events
             WHERE client_ip = ?
               AND reported_to_abuseipdb = 1
               AND abuseipdb_report_timestamp >= ?
+            ORDER BY abuseipdb_report_timestamp DESC
             LIMIT 1
         ''', (ip_address, threshold_iso))
+
         result = cursor.fetchone()
-        rwas_reported = bool(result)
+
+        was_reported = bool(result)
         if was_reported:
-            log.debug(f"Checked DB: IP {ip_address} found with recent report timestamp >= {threshold_iso}.")
+            # Используем result['abuseipdb_report_timestamp'] если result не None
+            report_ts = result['abuseipdb_report_timestamp'] if result else 'N/A'
+            log.debug(f"Checked DB: IP {ip_address} found with recent report timestamp: {report_ts}")
         else:
             log.debug(f"Checked DB: IP {ip_address} not found with recent report timestamp.")
+
         return was_reported
+
     except sqlite3.Error as e:
         log.exception(f"Error checking if IP {ip_address} was reported: {e}")
-        return False # При ошибке лучше разрешить репорт, чем блокировать его навсегда
+        return False
     finally:
         if conn:
             conn.close()
