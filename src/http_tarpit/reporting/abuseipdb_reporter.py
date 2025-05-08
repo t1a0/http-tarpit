@@ -8,8 +8,6 @@ log = logging.getLogger(__name__)
 
 ABUSEIPDB_API_URL = 'https://api.abuseipdb.com/api/v2/report'
 
-REPORTED_IPS_CACHE = set()
-CACHE_MAX_SIZE = 10000
 
 async def report_ip_to_abuseipdb(ip_address: str,  target_port: int, comment_details: str):
     """Асинхронная отправка репорта в AbuseIPDB"""
@@ -19,10 +17,6 @@ async def report_ip_to_abuseipdb(ip_address: str,  target_port: int, comment_det
     if not config.ABUSEIPDB_API_KEY:
         log.error("AbusIPDB reporting is enablud, but API is missing!")
         return
-    
-    # if ip_address in REPORTED_IPS_CACHE:
-    #     log.debug(f"IP {ip_address} already reported recently. Skipping.")
-    #     return
     
     headers = {
         'Accept': 'application/json',

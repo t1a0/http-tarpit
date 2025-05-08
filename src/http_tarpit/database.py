@@ -124,49 +124,29 @@ def check_ip_reported_recently(ip_address: str, interval_hours: int = 1) -> bool
     conn = get_db_connection()
     if not conn:
         return False 
-
+    interval_minutes = config.ABUSEIPDB_REPORT_INTERVAL_MINUTES
     try:
         cursor = conn.cursor()
-        threshold_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=interval_hours)
+        threshold_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=interval_minutes)
         threshold_iso = threshold_time.isoformat()
-
-        cursor.execute('''
+        
+        ccursor.execute('''
             SELECT 1 FROM events
-            WHERE client_ip = ? AND reported_to_abuseipdb = 1 AND abuseipdb_report_timestamp >= ?
+            WHERE client_ip = ?
+              AND reported_to_abuseipdb = 1
+              AND abuseipdb_report_timestamp >= ?
             LIMIT 1
         ''', (ip_address, threshold_iso))
         result = cursor.fetchone()
-        return bool(result) 
+        rwas_reported = bool(result)
+        if was_reported:
+            log.debug(f"Checked DB: IP {ip_address} found with recent report timestamp >= {threshold_iso}.")
+        else:
+            log.debug(f"Checked DB: IP {ip_address} not found with recent report timestamp.")
+        return was_reported
     except sqlite3.Error as e:
         log.exception(f"Error checking if IP {ip_address} was reported: {e}")
-        return False 
-    finally:
-        if conn:
-            conn.close()
-
-def mark_ip_as_reported(ip_address: str, event_id: int = None):
-    conn = get_db_connection()
-    if not conn:
-        log.error(f"Cannot mark IP {ip_address} as reported: DB connection failed.")
-        return
-
-    try:
-        cursor = conn.cursor()
-        report_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-        if event_id:
-            cursor.execute('''
-                UPDATE events
-                SET reported_to_abuseipdb = 1, abuseipdb_report_timestamp = ?
-                WHERE id = ?
-            ''', (report_time, event_id))
-            conn.commit()
-            log.info(f"Event ID {event_id} (IP: {ip_address}) marked as reported to AbuseIPDB at {report_time}.")
-        else:
-            log.warning(f"Attempted to mark IP {ip_address} as reported without specific event_id.")
-
-    except sqlite3.Error as e:
-        log.exception(f"Error marking IP {ip_address} as reported: {e}")
+        return False # При ошибке лучше разрешить репорт, чем блокировать его навсегда
     finally:
         if conn:
             conn.close()
