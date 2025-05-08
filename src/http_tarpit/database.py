@@ -130,7 +130,7 @@ def check_ip_reported_recently(ip_address: str, interval_hours: int = 1) -> bool
         threshold_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=interval_minutes)
         threshold_iso = threshold_time.isoformat()
         
-        ccursor.execute('''
+        cursor.execute('''
             SELECT 1 FROM events
             WHERE client_ip = ?
               AND reported_to_abuseipdb = 1
