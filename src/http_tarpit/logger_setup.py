@@ -8,7 +8,6 @@ import traceback
 from . import config 
 
 class JsonFormatter(logging.Formatter):
-    """Кастомный форматер для вывода логов в JSON."""
     def format(self, record):
         log_record = {
             'timestamp': datetime.datetime.fromtimestamp(record.created, tz=datetime.timezone.utc).isoformat(),
@@ -62,7 +61,6 @@ def setup_logging():
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 
-    # Подавляем слишком подробные логи от aiohttp
     logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
     logging.getLogger('aiohttp.web').setLevel(logging.WARNING)
     logging.getLogger('aiohttp.server').setLevel(logging.INFO)
