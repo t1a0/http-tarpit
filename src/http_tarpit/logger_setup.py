@@ -41,7 +41,6 @@ class JsonFormatter(logging.Formatter):
             return json.dumps(error_log)
 
 def setup_logging():
-    """Настраиваем JSON логирование в файл и базовое в консоль."""
     json_formatter = JsonFormatter()
     file_handler = logging.FileHandler(config.LOG_FILE, mode='a', encoding='utf-8')
     file_handler.setFormatter(json_formatter)

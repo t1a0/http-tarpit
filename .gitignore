@@ -20,3 +20,5 @@ logs/
 data/*.db
 data/*.mmdb
 config.ini
+
+/scripts
