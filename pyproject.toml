@@ -22,6 +22,11 @@ packages = [{include = "http_tarpit", from = "src"}]
 [tool.poetry.scripts]
 analyze = "scripts.analyze_data:main_cli" 
 
+[tool.poetry.group.analysis.dependencies]
+matplotlib = "^3.10.3"
+seaborn = "^0.13.2"
+folium = "^0.19.5"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
